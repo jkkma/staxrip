@@ -57,9 +57,21 @@ only the .NET workload, while building the **solution** also needs the MSVC v143
 `FrameServer.vcxproj` sets `<IncludePath>..\bin\Apps\FrameServer\VapourSynth\sdk\include\vapoursynth`.
 `/Source/bin` is **gitignored**, and the repo vendors `avisynth.h` + `avs\*.h` but **not** the
 VapourSynth SDK -- those headers ship inside the bundled VapourSynth app. So a fresh clone fails at
-`error C1083: 'VSScript4.h'` even with the full C++ toolchain installed. Stage the SDK there (four
-headers: `VapourSynth4.h`, `VSScript4.h`, `VSHelper4.h`, `VSConstants4.h`) before touching
-`Source/FrameServer/`. The `compile-gate` hook detects this and skips rather than failing the turn.
+`error C1083: 'VSScript4.h'` even with the full C++ toolchain installed.
+
+Stage four headers there before touching `Source/FrameServer/`, matching the **bundled** VapourSynth
+version rather than upstream `master` (the changelogs are the only record of which that is -- `R73`
+at time of writing, and its `VapourSynth4.h` already differs from `master`):
+
+```powershell
+$d = 'Source\bin\Apps\FrameServer\VapourSynth\sdk\include\vapoursynth'
+New-Item -ItemType Directory -Force $d | Out-Null
+'VapourSynth4.h','VSScript4.h','VSHelper4.h','VSConstants4.h' | ForEach-Object {
+    Invoke-WebRequest "https://raw.githubusercontent.com/vapoursynth/vapoursynth/R73/include/$_" -OutFile "$d\$_"
+}
+```
+
+The `compile-gate` hook checks for these up front and skips rather than failing the turn.
 
 ## Hard invariants
 
@@ -189,9 +201,11 @@ automated gate. Notes:
   [Build](#build) for why that distinction matters.
 - It finds MSBuild via `STAXRIP_MSBUILD`, else vswhere. **Set `STAXRIP_MSBUILD` if it cannot find
   one** -- otherwise the gate skips and nothing checks that your change compiles.
-- Every skip is announced once per session via `systemMessage` (no MSBuild, no NuGet restore, no C++
-  toolchain, `git status` failed). Only "nothing dirty" is silent. If you never see a skip notice and
-  never see a build, it ran.
+- Every skip is announced once per session via `systemMessage`: no MSBuild, no NuGet restore (only
+  when managed sources are in scope -- FrameServer does not use NuGet), no C++ toolchain, no
+  VapourSynth SDK, `git status` failed, and the partial case where the VB project compiles but
+  FrameServer could not be checked. Only "nothing dirty" is silent. If you never see a skip notice
+  and never see a build, it ran.
 - A failure that is clearly environmental (`MSB8020`, `MSB3644`, `MSB4019`, ...) is reported as a
   skip, not used to block the turn -- those are not fixable from the working tree. The missing
   VapourSynth SDK is checked *before* building rather than classified afterwards, because its

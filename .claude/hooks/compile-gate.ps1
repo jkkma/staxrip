@@ -201,13 +201,6 @@ if (-not $msBuild) {
         'Install VS Build Tools (.NET desktop workload), or set STAXRIP_MSBUILD to an MSBuild.exe path.')
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $projectDir 'Source\packages') -PathType Container)) {
-    Exit-Skip -Key 'norestore' -Message (
-        'NuGet packages are not restored, so nothing verified that this compiles ' +
-        '(a build would be pure BC30002 noise). Restore with: ' +
-        'MSBuild.exe Source\StaxRip.sln -t:Restore -p:RestorePackagesConfig=true')
-}
-
 #   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 #   Build scope
 
@@ -233,6 +226,17 @@ if ($nativeBlocker) {
     }
     $needsNative = $false
     $nativeNote = ' (FrameServer skipped)'
+}
+
+# Only the managed half consumes packages.config, so check this AFTER the scope is settled --
+# otherwise a native-only turn is told "NuGet is not restored", which is true but irrelevant to
+# FrameServer and points at the wrong fix.
+if ($needsManaged -and
+    -not (Test-Path -LiteralPath (Join-Path $projectDir 'Source\packages') -PathType Container)) {
+    Exit-Skip -Key 'norestore' -Message (
+        'NuGet packages are not restored, so nothing verified that this compiles ' +
+        '(a build would be pure BC30002 noise). Restore with: ' +
+        'MSBuild.exe Source\StaxRip.sln -t:Restore -p:RestorePackagesConfig=true')
 }
 
 if ($needsNative) {

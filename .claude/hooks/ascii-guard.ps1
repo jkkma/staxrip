@@ -103,10 +103,22 @@ function Get-Offender {
 function Get-DisplayPath {
     param([string] $FullPath, [string] $ProjectDir)
 
-    if ($ProjectDir -and $FullPath.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase)) {
-        return $FullPath.Substring($ProjectDir.Length).TrimStart('\')
+    if (-not $ProjectDir) { return $FullPath }
+
+    # Normalize before comparing. CLAUDE_PROJECT_DIR can arrive with forward slashes and/or a
+    # trailing separator, in which case a raw StartsWith misses and the report shows a long
+    # absolute path instead of the repo-relative one.
+    try {
+        $normFull = [IO.Path]::GetFullPath($FullPath)
+        $normRoot = [IO.Path]::GetFullPath($ProjectDir).TrimEnd('\', '/')
+    } catch {
+        return $FullPath
     }
-    return $FullPath
+
+    if ($normFull.StartsWith($normRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        return $normFull.Substring($normRoot.Length + 1)
+    }
+    return $normFull
 }
 
 #   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
