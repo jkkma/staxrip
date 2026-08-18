@@ -184,7 +184,7 @@ Verbs in use: `Add`, `Alter`, `Extend`, `Fix`, `Improve`, `Update`, `Remove`.
 
 ## Claude Code hooks
 
-Three hooks in `.claude/settings.json`, all PowerShell under `.claude/hooks/`. Each has an env-var
+Four hooks in `.claude/settings.json`, all PowerShell under `.claude/hooks/`. Each has an env-var
 escape hatch, because a guard you cannot turn off gets deleted instead.
 
 | Hook | Fires on | Does | Off switch |
@@ -192,6 +192,7 @@ escape hatch, because a guard you cannot turn off gets deleted instead.
 | `compile-gate.ps1` | `Stop` | Builds if sources are dirty; blocks the turn on compile errors | `STAXRIP_SKIP_COMPILE_GATE=1` |
 | `ascii-guard.ps1` | `PostToolUse` on `Edit`/`Write`/`Bash`/`PowerShell` | Blocks on any codepoint > 127 in a guarded file | -- |
 | `designer-guard.ps1` | `PreToolUse` on `Edit`/`Write`/`Bash`/`PowerShell` | Asks before hand-editing `*.Designer.vb` / `*.resx` | `STAXRIP_ALLOW_DESIGNER_EDIT=1` |
+| `session-pull.ps1` | `SessionStart` (`startup` only) | Fast-forwards the branch before work starts; silent unless it moved HEAD or failed | `STAXRIP_SKIP_SESSION_PULL=1` |
 
 **`compile-gate` can add minutes to the end of a turn.** There is no test suite, so it is the only
 automated gate. Notes:
@@ -220,6 +221,13 @@ heredoc writes files without going through the file tools, and would otherwise s
 handles this by sweeping every dirty guarded file; `designer-guard` by scanning the command text for
 guarded paths. `ascii-guard` reads its extension list out of `Source/Build.ps1`'s
 `$includeProjectFiles` rather than duplicating it, so the two cannot drift.
+
+**`session-pull` is deliberately timid**, because a hook that rewrites your tree at startup is worse
+than a stale tree. It only ever fast-forwards: it skips, silently and without touching anything, when
+the branch has no upstream or when tracked files are modified or staged. Untracked files do not count
+as dirty -- they cannot block a fast-forward, and treating them as blocking would mean skipping every
+session over a stray scratch file. Silence means "already up to date"; you hear from it only when it
+moved `HEAD` or when `--ff-only` refused (usually a diverged branch, needing a real merge or rebase).
 
 ## Conventions
 
